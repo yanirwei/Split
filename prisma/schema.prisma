@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model App {
+  id          String       @id @default(uuid())
+  name        String
+  developer   String
+  storeType   String       // "ios" or "android"
+  category    String?
+  rating      Float?       @default(4.5)
+  reviewCount Int?         @default(0)
+  appSize     String?
+  currentIcon String?      // URL/path to current icon
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  experiments Experiment[]
+}
+
+model Experiment {
+  id              String      @id @default(uuid())
+  name            String
+  description     String?
+  appId           String
+  app             App         @relation(fields: [appId], references: [id], onDelete: Cascade)
+  status          String      @default("draft") // "draft", "running", "paused", "completed"
+  testingElement  String      // "icon", "screenshots", "video", "title", "description", "subtitle"
+  trafficSplit    String      @default("50/50") // e.g., "50/50", "33/33/34"
+  fbPixelId       String?     // Facebook Pixel ID for tracking
+  targetSampleSize Int?       @default(1000)
+  confidenceLevel  Float?     @default(95.0)
+  startDate       DateTime?
+  endDate         DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  variations      Variation[]
+}
+
+model Variation {
+  id             String   @id @default(uuid())
+  name           String   // e.g., "Control", "Variant A", "Variant B"
+  isControl      Boolean  @default(false)
+  experimentId   String
+  experiment     Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  // Store page configuration
+  title          String?
+  subtitle       String?
+  description    String?
+  shortDescription String?
+  iconUrl        String?
+  videoUrl       String?
+  screenshotUrls String?  // JSON array of screenshot URLs
+  rating         Float?
+  reviewCount    Int?
+  appSize        String?
+  // Metrics (denormalized for quick access)
+  views          Int      @default(0)
+  installs       Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  events         Event[]
+  heatmapData    HeatmapPoint[]
+}
+
+model Event {
+  id           String    @id @default(uuid())
+  variationId  String
+  variation    Variation @relation(fields: [variationId], references: [id], onDelete: Cascade)
+  visitorId    String
+  eventType    String    // "page_view", "install_click", "gallery_scroll", "page_scroll", "video_play", "video_pause", "pixel_fire"
+  metadata     String?   // JSON string for additional data (e.g., scroll depth, video time, seconds on page)
+  timestamp    DateTime  @default(now())
+  sessionDuration Float? // seconds spent on page before this event
+  createdAt    DateTime  @default(now())
+}
+
+model HeatmapPoint {
+  id          String    @id @default(uuid())
+  variationId String
+  variation   Variation @relation(fields: [variationId], references: [id], onDelete: Cascade)
+  visitorId   String
+  x           Float     // percentage position 0-100
+  y           Float     // percentage position 0-100
+  elementType String?   // what element was clicked
+  timestamp   DateTime  @default(now())
+}
+
+model Visitor {
+  id            String   @id @default(uuid())
+  visitorToken  String   @unique // cookie-based identifier
+  experimentId  String
+  variationId   String
+  userAgent     String?
+  referrer      String?
+  country       String?
+  device        String?  // "mobile", "tablet", "desktop"
+  timeOnPage    Float?   // total seconds on page
+  isInstaller   Boolean  @default(false)
+  isDecisive    Boolean? // decided within 7 seconds
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
